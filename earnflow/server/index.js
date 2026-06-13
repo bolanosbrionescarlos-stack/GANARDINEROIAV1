@@ -175,7 +175,25 @@ app.post('/api/login', (req, res) => {
 
 app.get('/api/stats/:userId', (req, res) => {
   db.get("SELECT * FROM user_stats WHERE user_id = ?", [req.params.userId], (err, row) => {
-    res.json(row || {});
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) {
+      // Check if user exists in users table
+      db.get("SELECT id FROM users WHERE id = ?", [req.params.userId], (err2, userRow) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        if (userRow) {
+          // User exists but has no user_stats row yet (initialize it)
+          db.run("INSERT INTO user_stats (user_id, balance, tasks_today, pending_approval, total_completed) VALUES (?, 0, 0, 0, 0)", [req.params.userId], (err3) => {
+            if (err3) return res.status(500).json({ error: err3.message });
+            res.json({ user_id: parseInt(req.params.userId), balance: 0, tasks_today: 0, pending_approval: 0, total_completed: 0 });
+          });
+        } else {
+          // User does not exist at all (stale session)
+          res.status(404).json({ error: 'User not found' });
+        }
+      });
+    } else {
+      res.json(row);
+    }
   });
 });
 
@@ -234,9 +252,27 @@ app.post('/api/complete-task', (req, res) => {
   const { userId, reward } = req.body;
   const rewardNum = parseFloat(reward.replace('$', ''));
   
-  db.run("UPDATE user_stats SET balance = balance + ?, tasks_today = tasks_today + 1, total_completed = total_completed + 1 WHERE user_id = ?", [rewardNum, userId], (err) => {
+  db.run("UPDATE user_stats SET balance = balance + ?, tasks_today = tasks_today + 1, total_completed = total_completed + 1 WHERE user_id = ?", [rewardNum, userId], function(err) {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ success: true });
+    
+    if (this.changes === 0) {
+      // User stats row was not updated. Let's check if the user exists in users table.
+      db.get("SELECT id FROM users WHERE id = ?", [userId], (err2, userRow) => {
+        if (err2) return res.status(500).json({ error: err2.message });
+        if (userRow) {
+          // Initialize stats row with the reward
+          db.run("INSERT INTO user_stats (user_id, balance, tasks_today, pending_approval, total_completed) VALUES (?, ?, 1, 0, 1)", [userId, rewardNum], (err3) => {
+            if (err3) return res.status(500).json({ error: err3.message });
+            res.json({ success: true });
+          });
+        } else {
+          // User does not exist at all
+          res.status(404).json({ error: 'User not found' });
+        }
+      });
+    } else {
+      res.json({ success: true });
+    }
   });
 });
 
