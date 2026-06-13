@@ -44,6 +44,7 @@ const Auth = ({ onLogin }) => {
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100vh',
+      width: '100%',
       background: 'var(--bg-dark)'
     }}>
       <div className="glass-card" style={{ width: '100%', maxWidth: '400px', padding: '40px' }}>

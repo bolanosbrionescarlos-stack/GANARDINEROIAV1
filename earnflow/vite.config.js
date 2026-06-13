@@ -6,5 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true, // Permite conexiones desde otros dispositivos (celular)
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true
+      }
+    }
   }
 })
