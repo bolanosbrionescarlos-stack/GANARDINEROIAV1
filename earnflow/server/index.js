@@ -101,6 +101,11 @@ db.serialize(() => {
     // Ignorar error si la columna ya existe
   });
 
+  // Migración: agregar columna avatar si no existe
+  db.run(`ALTER TABLE users ADD COLUMN avatar TEXT`, (err) => {
+    // Ignorar error si la columna ya existe
+  });
+
   // Insertar administrador por defecto si no existe
   db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
     if (!row) {
@@ -170,6 +175,25 @@ app.post('/api/login', (req, res) => {
   db.get("SELECT * FROM users WHERE username = ? AND password = ?", [username, password], (err, user) => {
     if (err || !user) return res.status(401).json({ error: 'Credenciales inválidas' });
     res.json({ success: true, user });
+  });
+});
+
+// ── Endpoints de Avatar ────────────────────────────────────────────────
+app.get('/api/avatar/:userId', (req, res) => {
+  db.get("SELECT avatar FROM users WHERE id = ?", [req.params.userId], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    res.json({ avatar: row.avatar || null });
+  });
+});
+
+app.post('/api/avatar', (req, res) => {
+  const { userId, avatar } = req.body;
+  if (!userId || !avatar) return res.status(400).json({ error: 'userId y avatar son requeridos' });
+  db.run("UPDATE users SET avatar = ? WHERE id = ?", [avatar, userId], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ success: true });
   });
 });
 
