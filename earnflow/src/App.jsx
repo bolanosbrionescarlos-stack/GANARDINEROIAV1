@@ -5,6 +5,7 @@ import Wallet from './components/Wallet'
 import Investments from './components/Investments'
 import Referrals from './components/Referrals'
 import Auth from './components/Auth'
+import Admin from './components/Admin'
 import './index.css'
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
         {activeTab === 'wallet' && <Wallet user={user} />}
         {activeTab === 'investments' && <Investments user={user} setActiveTab={setActiveTab} />}
         {activeTab === 'referrals' && <Referrals user={user} />}
+        {activeTab === 'admin' && <Admin user={user} />}
       </main>
     </div>
   )

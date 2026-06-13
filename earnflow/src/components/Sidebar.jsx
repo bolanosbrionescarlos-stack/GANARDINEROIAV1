@@ -1,5 +1,5 @@
 import React from 'react'
-import { LayoutDashboard, Wallet, TrendingUp, Users, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Wallet, TrendingUp, Users, Settings, LogOut, ShieldCheck } from 'lucide-react'
 
 const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
   const menuItems = [
@@ -8,6 +8,10 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout, user }) => {
     { id: 'investments', label: 'Inversiones', icon: TrendingUp },
     { id: 'referrals', label: 'Referidos', icon: Users },
   ]
+
+  if (user && user.is_admin === 1) {
+    menuItems.push({ id: 'admin', label: 'Administración', icon: ShieldCheck })
+  }
 
   return (
     <aside style={{

@@ -47,7 +47,8 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE,
     password TEXT,
-    full_name TEXT
+    full_name TEXT,
+    is_admin INTEGER DEFAULT 0
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS user_stats (
@@ -93,6 +94,23 @@ db.serialize(() => {
   // Migración: agregar columna referrer_id si no existe
   db.run(`ALTER TABLE users ADD COLUMN referrer_id INTEGER`, (err) => {
     // Ignorar error si la columna ya existe
+  });
+
+  // Migración: agregar columna is_admin si no existe
+  db.run(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`, (err) => {
+    // Ignorar error si la columna ya existe
+  });
+
+  // Insertar administrador por defecto si no existe
+  db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
+    if (!row) {
+      db.run("INSERT INTO users (username, password, full_name, is_admin) VALUES ('admin', 'admin123', 'Administrador', 1)", function(err2) {
+        if (!err2) {
+          const adminId = this.lastID;
+          db.run("INSERT INTO user_stats (user_id, balance, tasks_today, pending_approval, total_completed) VALUES (?, 0, 0, 0, 0)", [adminId]);
+        }
+      });
+    }
   });
 
   // Insertar tareas iniciales si no hay
@@ -304,6 +322,74 @@ app.get('/api/referrals/:userId', (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(refs || []);
     });
+});
+
+// Endpoints de Administración
+app.get('/api/admin/transactions', (req, res) => {
+  db.all(`
+    SELECT t.*, u.username, u.full_name 
+    FROM transactions t 
+    JOIN users u ON t.user_id = u.id 
+    WHERE t.status = 'Pendiente' 
+    ORDER BY t.id DESC
+  `, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/admin/approve-transaction', (req, res) => {
+  const { transactionId } = req.body;
+  
+  db.get("SELECT * FROM transactions WHERE id = ?", [transactionId], (err, tx) => {
+    if (err || !tx) return res.status(404).json({ error: 'Transacción no encontrada' });
+    if (tx.status !== 'Pendiente') return res.status(400).json({ error: 'La transacción ya no está pendiente' });
+    
+    db.serialize(() => {
+      db.run("UPDATE transactions SET status = 'Completado' WHERE id = ?", [transactionId], (err1) => {
+        if (err1) return res.status(500).json({ error: err1.message });
+        
+        if (tx.type.startsWith('Depósito')) {
+          const amt = parseFloat(tx.amount.replace('+', ''));
+          db.run("UPDATE user_stats SET balance = balance + ?, pending_approval = pending_approval - ? WHERE user_id = ?", [amt, amt, tx.user_id], (err2) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ success: true });
+          });
+        } else {
+          res.json({ success: true });
+        }
+      });
+    });
+  });
+});
+
+app.post('/api/admin/reject-transaction', (req, res) => {
+  const { transactionId } = req.body;
+  
+  db.get("SELECT * FROM transactions WHERE id = ?", [transactionId], (err, tx) => {
+    if (err || !tx) return res.status(404).json({ error: 'Transacción no encontrada' });
+    if (tx.status !== 'Pendiente') return res.status(400).json({ error: 'La transacción ya no está pendiente' });
+    
+    db.serialize(() => {
+      db.run("UPDATE transactions SET status = 'Rechazado' WHERE id = ?", [transactionId], (err1) => {
+        if (err1) return res.status(500).json({ error: err1.message });
+        
+        if (tx.type.startsWith('Depósito')) {
+          const amt = parseFloat(tx.amount.replace('+', ''));
+          db.run("UPDATE user_stats SET pending_approval = pending_approval - ? WHERE user_id = ?", [amt, tx.user_id], (err2) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ success: true });
+          });
+        } else {
+          const amt = Math.abs(parseFloat(tx.amount));
+          db.run("UPDATE user_stats SET balance = balance + ? WHERE user_id = ?", [amt, tx.user_id], (err2) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ success: true });
+          });
+        }
+      });
+    });
+  });
 });
 
 // Manejo de rutas para SPA
