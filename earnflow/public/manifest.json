@@ -1,0 +1,22 @@
+{
+  "short_name": "EarnFlow",
+  "name": "EarnFlow - Gana Dinero Online",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#05070a",
+  "background_color": "#05070a",
+  "orientation": "portrait"
+}
