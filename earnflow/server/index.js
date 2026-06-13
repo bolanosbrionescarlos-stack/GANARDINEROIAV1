@@ -9,14 +9,36 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+const fs = require('fs');
+
 // Servir archivos estáticos del frontend (React build)
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // Conexión a SQLite
-const dbPath = path.resolve(__dirname, 'earnflow.db');
+let dbPath;
+if (process.env.VERCEL) {
+  // En Vercel, el sistema de archivos es de solo lectura excepto /tmp
+  dbPath = path.join('/tmp', 'earnflow.db');
+  const sourceDbPath = path.resolve(__dirname, 'earnflow.db');
+  if (!fs.existsSync(dbPath)) {
+    try {
+      if (fs.existsSync(sourceDbPath)) {
+        fs.copyFileSync(sourceDbPath, dbPath);
+        console.log('Base de datos inicial copiada a /tmp.');
+      } else {
+        console.log('No se encontró base de datos inicial, se creará una nueva en /tmp.');
+      }
+    } catch (err) {
+      console.error('Error al copiar la base de datos a /tmp:', err.message);
+    }
+  }
+} else {
+  dbPath = path.resolve(__dirname, 'earnflow.db');
+}
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error('Error al conectar con SQLite:', err.message);
-  else console.log('Conectado a la base de datos SQLite.');
+  else console.log(`Conectado a la base de datos SQLite en: ${dbPath}`);
 });
 
 // Inicializar tablas
@@ -291,6 +313,10 @@ app.get('*', (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Servidor Backend corriendo en el puerto ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Servidor Backend corriendo en el puerto ${port}`);
+  });
+}
+
+module.exports = app;
